@@ -1,0 +1,18 @@
+[Unit]
+Description=ClawdBot OpenClaw Gateway (Docker Compose)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=__APP_ROOT__
+ExecStart=/usr/bin/docker compose --env-file .env.container up -d --build
+ExecStop=/usr/bin/docker compose --env-file .env.container down
+ExecReload=/usr/bin/docker compose --env-file .env.container up -d --build
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+

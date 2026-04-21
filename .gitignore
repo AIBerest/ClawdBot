@@ -1,0 +1,25 @@
+# VPS / env
+.env
+.env.container
+.env.local
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs & runtime
+logs/
+*.log
+runtime/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/

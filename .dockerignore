@@ -1,0 +1,12 @@
+.git
+.cursor
+.env
+.env.container
+.env.local
+runtime
+node_modules
+__pycache__
+*.pyc
+*.log
+.DS_Store
+

@@ -1,0 +1,61 @@
+services:
+  openclaw-gateway:
+    build:
+      context: .
+      args:
+        OPENCLAW_BASE_IMAGE: ${OPENCLAW_BASE_IMAGE:-ghcr.io/openclaw/openclaw:latest}
+    image: ${CLAWDBOT_IMAGE:-clawdbot-openclaw:local}
+    container_name: clawdbot-openclaw
+    command: ["openclaw", "gateway", "run"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    ports:
+      - "${OPENCLAW_HOST_BIND:-127.0.0.1}:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    environment:
+      HOME: /home/node
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      PUSH_SKILLS_ALLOWED_SENDER_ID: ${PUSH_SKILLS_ALLOWED_SENDER_ID}
+      PUSH_SKILLS_SCRIPT: ${PUSH_SKILLS_SCRIPT:-/opt/clawdbot/scripts/skills-git-push.sh}
+      SKILLS_REPO_DIR: ${SKILLS_REPO_DIR:-/srv/skills-repo}
+      SKILLS_REPO_BRANCH: ${SKILLS_REPO_BRANCH:-main}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./runtime/openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./runtime/openclaw-workspace}:/home/node/.openclaw/workspace
+      - ${SKILLS_REPO_DIR_HOST:-./runtime/skills-repo}:${SKILLS_REPO_DIR:-/srv/skills-repo}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18789/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  openclaw-cli:
+    image: ${CLAWDBOT_IMAGE:-clawdbot-openclaw:local}
+    container_name: clawdbot-openclaw-cli
+    profiles: ["cli"]
+    entrypoint: ["openclaw"]
+    network_mode: "service:openclaw-gateway"
+    read_only: true
+    environment:
+      HOME: /home/node
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./runtime/openclaw-config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./runtime/openclaw-workspace}:/home/node/.openclaw/workspace
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+

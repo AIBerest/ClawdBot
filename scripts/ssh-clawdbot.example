@@ -1,0 +1,9 @@
+# Добавьте этот блок в ~/.ssh/config
+# Затем замените ВАШ_IP_ИЛИ_ДОМЕН и ВАШ_ПОЛЬЗОВАТЕЛЬ на реальные значения.
+# Подключение: ssh clawdbot
+
+Host clawdbot
+    HostName ВАШ_IP_ИЛИ_ДОМЕН
+    User ВАШ_ПОЛЬЗОВАТЕЛЬ
+    IdentityFile ~/.ssh/clawdbot_vps
+    IdentitiesOnly yes

@@ -13,6 +13,9 @@ services:
     network_mode: "host"
     environment:
       HOME: /home/node
+      NPM_CONFIG_CACHE: /tmp/.npm
+      NODE_COMPILE_CACHE: /tmp/openclaw-compile-cache
+      OPENCLAW_NO_RESPAWN: "1"
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       PUSH_SKILLS_ALLOWED_SENDER_ID: ${PUSH_SKILLS_ALLOWED_SENDER_ID}
       PUSH_SKILLS_SCRIPT: ${PUSH_SKILLS_SCRIPT:-/opt/clawdbot/scripts/skills-git-push.sh}
@@ -46,6 +49,9 @@ services:
     read_only: true
     environment:
       HOME: /home/node
+      NPM_CONFIG_CACHE: /tmp/.npm
+      NODE_COMPILE_CACHE: /tmp/openclaw-compile-cache
+      OPENCLAW_NO_RESPAWN: "1"
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       TZ: ${TZ:-UTC}
     volumes:

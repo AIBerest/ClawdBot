@@ -10,8 +10,7 @@ services:
     restart: unless-stopped
     init: true
     read_only: true
-    ports:
-      - "${OPENCLAW_HOST_BIND:-127.0.0.1}:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    network_mode: "host"
     environment:
       HOME: /home/node
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
@@ -43,7 +42,7 @@ services:
     container_name: clawdbot-openclaw-cli
     profiles: ["cli"]
     entrypoint: ["openclaw"]
-    network_mode: "service:openclaw-gateway"
+    network_mode: "host"
     read_only: true
     environment:
       HOME: /home/node
@@ -58,4 +57,3 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-

@@ -12,7 +12,8 @@ WORKDIR /opt/clawdbot
 COPY openclaw /opt/clawdbot/openclaw
 COPY scripts /opt/clawdbot/scripts
 
+RUN node /opt/clawdbot/scripts/patch_openclaw_runtime.mjs /app/dist/get-reply-*.js
+
 RUN chown -R 1000:1000 /opt/clawdbot
 
 USER node
-

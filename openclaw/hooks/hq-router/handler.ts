@@ -7,6 +7,9 @@ type HookEvent = {
     senderId?: string;
     bodyForAgent?: string;
     content?: string;
+    shortCircuitReply?: boolean;
+    skipReply?: boolean;
+    replyText?: string;
   };
 };
 
@@ -359,6 +362,14 @@ export default async function handler(event: HookEvent) {
 
   try {
     await sendTelegramMessage(token, route.chatId, buildHandoffMessage(text, route));
+    event.context = {
+      ...(event.context ?? {}),
+      content: "NO_REPLY",
+      bodyForAgent: "NO_REPLY",
+      shortCircuitReply: true,
+      skipReply: true,
+      replyText: "NO_REPLY",
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     event.messages.push(`hq-router: ошибка\n${message}`);

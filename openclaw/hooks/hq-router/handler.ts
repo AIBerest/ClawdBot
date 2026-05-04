@@ -7,6 +7,7 @@ type HookEvent = {
     conversationId?: string;
     to?: string;
     senderId?: string;
+    body?: string;
     bodyForAgent?: string;
     content?: string;
     shortCircuitReply?: boolean;
@@ -156,7 +157,12 @@ const KEYWORD_ROUTES: Array<{ key: RouteKey; reason: string; keywords: string[] 
 ];
 
 function getText(event: HookEvent): string {
-  return (event.context?.bodyForAgent ?? event.context?.content ?? "").trim();
+  return (
+    event.context?.bodyForAgent ??
+    event.context?.content ??
+    event.context?.body ??
+    ""
+  ).trim();
 }
 
 function normalizeChatId(raw?: string): string | undefined {

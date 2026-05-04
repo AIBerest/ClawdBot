@@ -157,12 +157,15 @@ const KEYWORD_ROUTES: Array<{ key: RouteKey; reason: string; keywords: string[] 
 ];
 
 function getText(event: HookEvent): string {
-  return (
-    event.context?.bodyForAgent ??
-    event.context?.content ??
-    event.context?.body ??
-    ""
-  ).trim();
+  for (const value of [
+    event.context?.bodyForAgent,
+    event.context?.content,
+    event.context?.body,
+  ]) {
+    const text = value?.trim();
+    if (text) return text;
+  }
+  return "";
 }
 
 function normalizeChatId(raw?: string): string | undefined {

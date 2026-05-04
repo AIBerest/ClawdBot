@@ -184,6 +184,15 @@ function extractSenderId(event: HookEvent, info: ConversationInfo): string | und
   return normalizeChatId(info.sender_id);
 }
 
+function setNoReply(event: HookEvent, routeLabel: string): void {
+  const noReplyPrompt =
+    `System: This HQ / Inbox message was already auto-routed to ${routeLabel}. ` +
+    "Do not answer in HQ. Reply exactly with NO_REPLY.";
+  if (!event.context) return;
+  event.context.bodyForAgent = noReplyPrompt;
+  event.context.content = noReplyPrompt;
+}
+
 function getRouteConfig(): Record<RouteKey, string> {
   return {
     crypto: process.env.HQ_ROUTER_CRYPTO_CHAT_ID?.trim() || "",
@@ -329,7 +338,8 @@ export default async function handler(event: HookEvent) {
     process.env.HQ_ROUTER_ALLOWED_SENDER_ID?.trim(),
   );
   const senderId = extractSenderId(event, conversation);
-  if (allowedSenderId && senderId !== allowedSenderId) return;
+  const hasReliableUserSender = !!senderId && !senderId.startsWith("group:");
+  if (allowedSenderId && hasReliableUserSender && senderId !== allowedSenderId) return;
 
   const classified = classifyRoute(text);
   if (!classified) return;
@@ -360,6 +370,7 @@ export default async function handler(event: HookEvent) {
 
   try {
     await sendTelegramMessage(token, route.chatId, buildHandoffMessage(text, route));
+    setNoReply(event, route.label);
     event.messages.push(`Маршрутизация: ${route.label}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

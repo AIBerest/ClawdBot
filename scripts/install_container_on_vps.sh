@@ -16,6 +16,7 @@ UNIT_DST="/etc/systemd/system/${SERVICE_NAME}.service"
 CONFIG_DIR="${RUNTIME_ROOT}/openclaw-config"
 WORKSPACE_DIR="${RUNTIME_ROOT}/openclaw-workspace"
 SKILLS_DIR="${RUNTIME_ROOT}/skills-repo"
+HOOKS_DIR="${CONFIG_DIR}/hooks"
 ENV_FILE="${APP_ROOT}/.env.container"
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -35,7 +36,7 @@ fi
 
 docker compose version >/dev/null
 
-mkdir -p "${CONFIG_DIR}" "${WORKSPACE_DIR}" "${SKILLS_DIR}"
+mkdir -p "${CONFIG_DIR}" "${WORKSPACE_DIR}" "${SKILLS_DIR}" "${HOOKS_DIR}"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   install -m 600 "${APP_ROOT}/.env.container.example" "${ENV_FILE}"
@@ -74,6 +75,16 @@ fi
 
 chown -R 1000:1000 "${CONFIG_DIR}" "${WORKSPACE_DIR}" "${SKILLS_DIR}"
 
+if [[ -d "${APP_ROOT}/openclaw/hooks" ]]; then
+  find "${APP_ROOT}/openclaw/hooks" -mindepth 1 -maxdepth 1 -type d | while read -r hook_dir; do
+    hook_name="$(basename "${hook_dir}")"
+    rm -rf "${HOOKS_DIR:?}/${hook_name}"
+    cp -R "${hook_dir}" "${HOOKS_DIR}/${hook_name}"
+  done
+fi
+
+chown -R 1000:1000 "${HOOKS_DIR}"
+
 if [[ ! -f "${UNIT_TEMPLATE}" ]]; then
   echo "Missing ${UNIT_TEMPLATE}"
   exit 1
@@ -93,4 +104,3 @@ echo "  Workspace:   ${WORKSPACE_DIR}"
 echo "  Skills repo: ${SKILLS_DIR}"
 echo "  Status:      systemctl status ${SERVICE_NAME}"
 echo "  Logs:        docker logs -f clawdbot-openclaw"
-

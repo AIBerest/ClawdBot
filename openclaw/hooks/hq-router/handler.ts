@@ -4,6 +4,8 @@ type HookEvent = {
   messages: string[];
   context?: {
     channelId?: string;
+    conversationId?: string;
+    to?: string;
     senderId?: string;
     bodyForAgent?: string;
     content?: string;
@@ -159,7 +161,11 @@ function getText(event: HookEvent): string {
 
 function normalizeChatId(raw?: string): string | undefined {
   if (!raw) return undefined;
-  return raw.startsWith("telegram:") ? raw.slice("telegram:".length) : raw;
+  let value = raw.trim();
+  for (const prefix of ["telegram:", "group:", "chat:"]) {
+    if (value.startsWith(prefix)) value = value.slice(prefix.length);
+  }
+  return value || undefined;
 }
 
 function extractPlainBody(text: string): string {
@@ -323,7 +329,10 @@ export default async function handler(event: HookEvent) {
 
   const text = getText(event);
   const conversation = extractConversationInfo(text);
-  const chatId = normalizeChatId(conversation.chat_id);
+  const chatId =
+    normalizeChatId(conversation.chat_id) ||
+    normalizeChatId(event.context?.conversationId) ||
+    normalizeChatId(event.context?.to);
   if (!chatId || chatId !== sourceChatId) return;
 
   const allowedSenderId = normalizeChatId(

@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-
 type HookEvent = {
   type: string;
   action: string;
@@ -27,10 +25,6 @@ type RouteSpec = {
   label: string;
   reason: string;
 };
-
-const OPENCLAW_CONFIG_PATH =
-  process.env.HQ_ROUTER_OPENCLAW_CONFIG_PATH?.trim() ||
-  "/home/node/.openclaw/openclaw.json";
 
 const ROUTE_LABELS: Record<RouteKey, string> = {
   crypto: "10 — Crypto Desk",
@@ -184,13 +178,28 @@ function extractSenderId(event: HookEvent, info: ConversationInfo): string | und
   return normalizeChatId(info.sender_id);
 }
 
-function setNoReply(event: HookEvent, routeLabel: string): void {
-  const noReplyPrompt =
-    `System: This HQ / Inbox message was already auto-routed to ${routeLabel}. ` +
-    "Do not answer in HQ. Reply exactly with NO_REPLY.";
+function setAgentRoutingPrompt(
+  event: HookEvent,
+  route: RouteSpec,
+  originalText: string,
+): void {
   if (!event.context) return;
-  event.context.bodyForAgent = noReplyPrompt;
-  event.context.content = noReplyPrompt;
+  const handoff = buildHandoffMessage(originalText, route);
+  const prompt = [
+    `System: You are in HQ router mode for ${route.label}.`,
+    "Do not solve the user task in HQ.",
+    "Do not use exec, read, write, edit, apply_patch, web_search, web_fetch, browser, or any research tool.",
+    "Use the message tool exactly once to forward the handoff into the target Telegram chat.",
+    `Use these exact arguments: action=\"send\", channel=\"telegram\", target=\"${route.chatId}\".`,
+    "Send the handoff text exactly as provided below.",
+    "After the message tool succeeds, reply with exactly NO_REPLY.",
+    "",
+    "[HANDOFF_MESSAGE_BEGIN]",
+    handoff,
+    "[HANDOFF_MESSAGE_END]",
+  ].join("\n");
+  event.context.bodyForAgent = prompt;
+  event.context.content = prompt;
 }
 
 function getRouteConfig(): Record<RouteKey, string> {
@@ -282,46 +291,6 @@ function buildHandoffMessage(text: string, route: RouteSpec): string {
   ].join("\n");
 }
 
-async function readBotTokenFromConfig(): Promise<string | undefined> {
-  try {
-    const raw = await readFile(OPENCLAW_CONFIG_PATH, "utf8");
-    const parsed = JSON.parse(raw) as {
-      channels?: { telegram?: { botToken?: string } };
-    };
-    const token = parsed.channels?.telegram?.botToken?.trim();
-    return token || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-async function getBotToken(): Promise<string | undefined> {
-  const envToken = process.env.HQ_ROUTER_BOT_TOKEN?.trim();
-  if (envToken) return envToken;
-  return readBotTokenFromConfig();
-}
-
-async function sendTelegramMessage(
-  token: string,
-  chatId: string,
-  text: string,
-): Promise<void> {
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: true,
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`telegram send failed: ${response.status} ${body}`);
-  }
-}
-
 export default async function handler(event: HookEvent) {
   if (event.type !== "message" || event.action !== "preprocessed") return;
   if (event.context?.channelId !== "telegram") return;
@@ -355,25 +324,11 @@ export default async function handler(event: HookEvent) {
 
   if (destinationChatId === chatId) return;
 
-  const token = await getBotToken();
-  if (!token) {
-    event.messages.push("hq-router: bot token не найден");
-    return;
-  }
-
   const route: RouteSpec = {
     key: classified.key,
     chatId: destinationChatId,
     label: ROUTE_LABELS[classified.key],
     reason: classified.reason,
   };
-
-  try {
-    await sendTelegramMessage(token, route.chatId, buildHandoffMessage(text, route));
-    setNoReply(event, route.label);
-    event.messages.push(`Маршрутизация: ${route.label}`);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    event.messages.push(`hq-router: ошибка\n${message}`);
-  }
+  setAgentRoutingPrompt(event, route, text);
 }

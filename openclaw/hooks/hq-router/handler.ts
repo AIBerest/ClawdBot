@@ -26,6 +26,10 @@ type RouteSpec = {
   reason: string;
 };
 
+const OPENCLAW_CONFIG_PATH =
+  process.env.HQ_ROUTER_OPENCLAW_CONFIG_PATH?.trim() ||
+  "/home/node/.openclaw/openclaw.json";
+
 const ROUTE_LABELS: Record<RouteKey, string> = {
   crypto: "10 — Crypto Desk",
   content: "20 — Content Studio",
@@ -178,30 +182,6 @@ function extractSenderId(event: HookEvent, info: ConversationInfo): string | und
   return normalizeChatId(info.sender_id);
 }
 
-function setAgentRoutingPrompt(
-  event: HookEvent,
-  route: RouteSpec,
-  originalText: string,
-): void {
-  if (!event.context) return;
-  const handoff = buildHandoffMessage(originalText, route);
-  const prompt = [
-    `System: You are in HQ router mode for ${route.label}.`,
-    "Do not solve the user task in HQ.",
-    "Do not use exec, read, write, edit, apply_patch, web_search, web_fetch, browser, or any research tool.",
-    "Use the message tool exactly once to forward the handoff into the target Telegram chat.",
-    `Use these exact arguments: action=\"send\", channel=\"telegram\", target=\"${route.chatId}\".`,
-    "Send the handoff text exactly as provided below.",
-    "After the message tool succeeds, reply with exactly NO_REPLY.",
-    "",
-    "[HANDOFF_MESSAGE_BEGIN]",
-    handoff,
-    "[HANDOFF_MESSAGE_END]",
-  ].join("\n");
-  event.context.bodyForAgent = prompt;
-  event.context.content = prompt;
-}
-
 function getRouteConfig(): Record<RouteKey, string> {
   return {
     crypto: process.env.HQ_ROUTER_CRYPTO_CHAT_ID?.trim() || "",
@@ -291,6 +271,46 @@ function buildHandoffMessage(text: string, route: RouteSpec): string {
   ].join("\n");
 }
 
+async function readBotTokenFromConfig(): Promise<string | undefined> {
+  try {
+    const raw = await readFile(OPENCLAW_CONFIG_PATH, "utf8");
+    const parsed = JSON.parse(raw) as {
+      channels?: { telegram?: { botToken?: string } };
+    };
+    const token = parsed.channels?.telegram?.botToken?.trim();
+    return token || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function getBotToken(): Promise<string | undefined> {
+  const envToken = process.env.HQ_ROUTER_BOT_TOKEN?.trim();
+  if (envToken) return envToken;
+  return readBotTokenFromConfig();
+}
+
+async function sendTelegramMessage(
+  token: string,
+  chatId: string,
+  text: string,
+): Promise<void> {
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`telegram send failed: ${response.status} ${body}`);
+  }
+}
+
 export default async function handler(event: HookEvent) {
   if (event.type !== "message" || event.action !== "preprocessed") return;
   if (event.context?.channelId !== "telegram") return;
@@ -330,5 +350,17 @@ export default async function handler(event: HookEvent) {
     label: ROUTE_LABELS[classified.key],
     reason: classified.reason,
   };
-  setAgentRoutingPrompt(event, route, text);
+
+  const token = await getBotToken();
+  if (!token) {
+    event.messages.push("hq-router: bot token не найден");
+    return;
+  }
+
+  try {
+    await sendTelegramMessage(token, route.chatId, buildHandoffMessage(text, route));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    event.messages.push(`hq-router: ошибка\n${message}`);
+  }
 }
